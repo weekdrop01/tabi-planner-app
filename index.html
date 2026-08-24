@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TABIKUMI - AI旅行プランナー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<style>
+  :root{
+    --ink:#12213B;
+    --ink-2:#1B3157;
+    --mist:#EEF2F0;
+    --panel:#FFFFFF;
+    --teal:#157B77;
+    --teal-deep:#0E5C59;
+    --amber:#E7A63C;
+    --coral:#D9614F;
+    --text:#1D2624;
+    --text-soft:#5B6663;
+    --line:#DCE3DF;
+    font-family:'Noto Sans JP',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--mist);color:var(--text);}
+  .app{min-height:100vh;display:flex;background:var(--mist);}
+  .display{font-family:'Zen Kaku Gothic New',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- Rail ---------- */
+  .rail{
+    width:220px;flex-shrink:0;background:var(--ink);color:#EAF0EE;
+    padding:28px 20px;display:flex;flex-direction:column;gap:6px;
+  }
+  .rail-brand{display:flex;align-items:baseline;gap:8px;margin-bottom:28px;}
+  .rail-brand .mark{width:10px;height:10px;border-radius:2px;background:var(--amber);transform:rotate(45deg);}
+  .rail-brand h1{font-size:15px;letter-spacing:.06em;margin:0;font-weight:700;}
+  .rail-brand span{font-size:10px;color:#9FB3AC;letter-spacing:.12em;}
+  .step-item{
+    display:flex;gap:12px;align-items:flex-start;padding:12px 10px;border-radius:10px;
+    cursor:default;position:relative;
+  }
+  .step-item.clickable{cursor:pointer;}
+  .step-item .num{
+    font-family:'JetBrains Mono',monospace;font-size:11px;width:22px;height:22px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    border:1px solid #3A5170;color:#9FB3AC;margin-top:1px;
+  }
+  .step-item.active .num{background:var(--amber);border-color:var(--amber);color:var(--ink);font-weight:700;}
+  .step-item.done .num{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .step-item .label{font-size:13px;line-height:1.5;}
+  .step-item .label b{display:block;font-size:13.5px;font-weight:700;}
+  .step-item .label small{color:#9FB3AC;font-size:11px;}
+  .step-item.active .label b{color:#fff;}
+  .rail-line{width:1px;height:14px;background:#3A5170;margin-left:21px;}
+  .rail-foot{margin-top:auto;font-size:10.5px;color:#7C9089;line-height:1.6;letter-spacing:.02em;}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .topbar{
+    padding:22px 36px;border-bottom:1px solid var(--line);background:var(--panel);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar h2{margin:0;font-size:20px;}
+  .topbar p{margin:2px 0 0;font-size:12.5px;color:var(--text-soft);}
+  .content{flex:1;padding:32px 36px;overflow:auto;}
+  .btn{
+    font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:13.5px;
+    padding:11px 22px;border-radius:8px;border:none;cursor:pointer;letter-spacing:.02em;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 3px 0 var(--teal-deep);}
+  .btn-primary:hover{transform:translateY(-1px);}
+  .btn-primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--teal-deep);}
+  .btn-primary:disabled{background:#B7C4C0;box-shadow:0 3px 0 #98A6A1;cursor:not-allowed;transform:none;}
+  .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .row{display:flex;gap:12px;}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:18px;}
+  .field label{font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:.03em;}
+  .field input{
+    font-family:'Noto Sans JP',sans-serif;font-size:14.5px;padding:11px 13px;border-radius:8px;
+    border:1px solid var(--line);background:#fff;color:var(--text);outline:none;
+  }
+  .field input:focus{border-color:var(--teal);}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;}
+  .trip-summary{
+    display:inline-flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:8px 16px;font-size:12.5px;color:var(--text-soft);margin-bottom:22px;
+  }
+  .trip-summary b{color:var(--ink);font-family:'JetBrains Mono',monospace;}
+
+  .search-row{display:flex;gap:10px;margin-bottom:18px;}
+  .search-row input{flex:1;}
+  .search-results{display:flex;flex-direction:column;gap:8px;margin-bottom:26px;}
+  .search-hit{
+    display:flex;justify-content:space-between;align-items:center;padding:12px 14px;
+    border:1px solid var(--line);border-radius:9px;background:#fff;
+  }
+  .search-hit .name{font-size:14px;font-weight:500;}
+  .search-hit .addr{font-size:11.5px;color:var(--text-soft);margin-top:2px;}
+  .mini-btn{
+    font-size:12px;font-weight:700;border:none;background:var(--ink);color:#fff;padding:7px 14px;
+    border-radius:6px;cursor:pointer;flex-shrink:0;
+  }
+  .mini-btn.remove{background:transparent;color:var(--coral);border:1px solid var(--coral);}
+  .spot-list{display:flex;flex-direction:column;gap:8px;}
+  .spot-chip{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 14px;
+    background:#F4F7F5;border-radius:9px;border:1px solid var(--line);
+  }
+  .spot-chip .idx{
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:#fff;background:var(--teal);
+    width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    margin-right:10px;
+  }
+  .empty-note{
+    border:1px dashed var(--line);border-radius:10px;padding:22px;text-align:center;
+    color:var(--text-soft);font-size:13px;
+  }
+
+  #map{height:440px;border-radius:12px;border:1px solid var(--line);}
+  .leaflet-div-icon{background:transparent;border:none;}
+  .pin{
+    width:26px;height:26px;border-radius:50% 50% 50% 0;background:var(--coral);transform:rotate(-45deg);
+    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,.3);
+    border:2px solid #fff;
+  }
+  .pin span{transform:rotate(45deg);color:#fff;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;}
+  .pin.day{background:var(--teal);}
+
+  .warn-box{
+    background:#FFF6E8;border:1px solid var(--amber);border-radius:10px;padding:18px 20px;margin-bottom:22px;
+  }
+  .warn-box .head{display:flex;gap:8px;align-items:center;font-weight:700;color:#8A5B0E;font-size:14px;margin-bottom:8px;}
+  .warn-box .stats{display:flex;gap:22px;margin:12px 0;flex-wrap:wrap;}
+  .warn-box .stat b{display:block;font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--ink);}
+  .warn-box .stat span{font-size:11px;color:var(--text-soft);}
+  .suggest-chip{
+    display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--amber);
+    border-radius:8px;padding:9px 14px;font-size:12.5px;margin-top:6px;
+  }
+
+  .reminder-box{
+    display:flex;align-items:flex-start;gap:12px;background:#F1EEFB;border-radius:10px;
+    padding:14px 16px;margin-bottom:14px;
+  }
+  .reminder-box .icon-circle{
+    width:32px;height:32px;border-radius:50%;background:#6B5FC7;color:#fff;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:15px;
+  }
+  .reminder-box .body{flex:1;}
+  .reminder-box .msg{font-size:13.5px;font-weight:500;color:#3D3577;margin-bottom:2px;}
+  .reminder-box .sub{font-size:12px;color:#6B5FC7;line-height:1.5;}
+  .reminder-box .action{
+    font-size:12.5px;font-weight:700;color:#6B5FC7;text-decoration:underline;cursor:pointer;
+    background:none;border:none;padding:0;margin-top:4px;display:inline-block;
+  }
+  .reminder-box .close{background:none;border:none;color:#9891C9;cursor:pointer;font-size:14px;flex-shrink:0;}
+
+  .day-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .day-tab{
+    padding:9px 18px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;
+    font-size:13px;font-weight:700;font-family:'Zen Kaku Gothic New',sans-serif;color:var(--text-soft);
+  }
+  .day-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .day-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+  .day-sub{font-size:12px;color:var(--text-soft);margin-bottom:18px;}
+
+  .timetable{position:relative;padding-left:14px;}
+  .tt-row{position:relative;padding:0 0 26px 30px;}
+  .tt-row:before{
+    content:'';position:absolute;left:5px;top:6px;bottom:-6px;width:1px;
+    background:repeating-linear-gradient(to bottom, var(--line) 0 4px, transparent 4px 8px);
+  }
+  .tt-row:last-child:before{display:none;}
+  .tt-dot{position:absolute;left:0;top:2px;width:11px;height:11px;border-radius:50%;background:var(--teal);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--teal);}
+  .tt-dot.move{background:var(--mist);box-shadow:0 0 0 1.5px var(--line);}
+  .tt-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-soft);margin-bottom:3px;}
+  .tt-name{font-size:15px;font-weight:700;}
+  .tt-move{font-size:12px;color:var(--text-soft);}
+  .tt-note{font-size:12.5px;color:var(--text-soft);margin-top:4px;line-height:1.6;}
+
+  .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;gap:16px;}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--teal);animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading p{font-size:13.5px;color:var(--text-soft);margin:0;}
+
+  .footer-actions{display:flex;justify-content:space-between;margin-top:28px;}
+  ::selection{background:var(--amber);color:var(--ink);}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <div class="rail" id="rail"></div>
+  <div class="main">
+    <div class="topbar" id="topbar"></div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script>
+/* ============ STATE ============ */
+const state = {
+  view: 'wizard', // 'wizard' | 'history' | 'history-detail'
+  step: 1,
+  trip: { name:'', start:'', end:'', startPoint:null, startTime:'09:00', goalPoint:null, endTime:'18:00' }, // startPoint/goalPoint: {name, lat, lng} | null (未定)
+  spots: [],           // {id, name, addr, lat, lng}
+  searchQuery: '',
+  searchResults: [],
+  searching: false,
+  searchError: null,
+  searchSearched: false,
+  hotelSearch: { target:null, query:'', results:[], searching:false, error:null, searched:false }, // target: 'start' | 'goal' | null
+  plan: null,          // AI result
+  planLoading: false,
+  planError: null,
+  activeDay: 0,
+  map: null,
+  mapMarkers: [],
+  historyList: [],        // [{id,name,start,end,spotNames,savedAt}]
+  historyLoading: false,
+  currentTripSaved: false,
+  savedNotice: null,
+  _wizardBackup: null,
+  _dismissedReminders: new Set(),
+};
+
+/* ============ HISTORY (backend-persisted) ============ */
+function getUserId(){
+  // 簡易的な匿名ユーザーID。本物のログインに置き換える場合はここを差し替える。
+  let id = localStorage.getItem('tabikumi_user_id');
+  if(!id){
+    id = 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,10);
+    localStorage.setItem('tabikumi_user_id', id);
+  }
+  return id;
+}
+
+async function loadHistoryList(){
+  state.historyLoading = true;
+  try{
+    const res = await fetch('/api/trips', { headers: { 'X-User-Id': getUserId() } });
+    if(!res.ok) throw new Error('failed');
+    const data = await res.json();
+    state.historyList = data.trips;
+  }catch(e){
+    state.historyList = [];
+  }
+  state.historyLoading = false;
+  renderAll();
+}
+
+async function saveTripToHistory(){
+  if(!state.plan) return;
+  try{
+    const res = await fetch('/api/trips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+      body: JSON.stringify({
+        name: state.trip.name, start: state.trip.start, end: state.trip.end,
+        trip: state.trip, spots: state.spots, plan: state.plan
+      })
+    });
+    if(!res.ok) throw new Error('failed');
+    state.currentTripSaved = true;
+    state.savedNotice = '旅の記録に保存しました';
+    await loadHistoryList();
+  }catch(e){
+    state.savedNotice = '保存に失敗しました。もう一度お試しください。';
+  }
+  renderContentOnly();
+}
+
+async function deleteHistoryTrip(id){
+  try{
+    await fetch('/api/trips/'+id, { method: 'DELETE', headers: { 'X-User-Id': getUserId() } });
+  }catch(e){}
+  await loadHistoryList();
+}
+
+async function openHistoryDetail(id){
+  try{
+    const res = await fetch('/api/trips/'+id, { headers: { 'X-User-Id': getUserId() } });
+    if(!res.ok) return;
+    const record = await res.json();
+    state._wizardBackup = { trip: state.trip, spots: state.spots, plan: state.plan, activeDay: state.activeDay, step: state.step, currentTripSaved: state.currentTripSaved };
+    state.trip = record.trip; state.spots = record.spots; state.plan = record.plan; state.activeDay = 0;
+    state.view = 'history-detail';
+    renderAll();
+  }catch(e){}
+}
+
+function closeHistoryDetail(){
+  if(state._wizardBackup){
+    state.trip = state._wizardBackup.trip; state.spots = state._wizardBackup.spots;
+    state.plan = state._wizardBackup.plan; state.activeDay = state._wizardBackup.activeDay;
+    state.step = state._wizardBackup.step; state.currentTripSaved = state._wizardBackup.currentTripSaved;
+    state._wizardBackup = null;
+  }
+  state.view = 'history';
+  renderAll();
+}
+
+function buildHistoryPromptContext(){
+  if(!state.historyList.length) return '';
+  const lines = state.historyList.slice(0,5).map(t=>`- ${t.name}（${t.start}〜${t.end}）: ${(t.spotNames||[]).join('、')}`);
+  return lines.join('\n');
+}
+
+const STEPS = [
+  {n:1, label:'旅行日程', sub:'いつ行く？'},
+  {n:2, label:'スポット登録', sub:'どこに行きたい？'},
+  {n:3, label:'地図で確認', sub:'位置関係をチェック'},
+  {n:4, label:'AIプラン生成', sub:'AIが旅程を作成'},
+  {n:5, label:'完成プラン', sub:'旅程＋ルート'},
+];
+
+/* ============ HELPERS ============ */
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+function daysBetween(a,b){ if(!a||!b) return 0; const d=(new Date(b)-new Date(a))/86400000; return d>=0? d+1 : 0; }
+function haversineKm(a,b){
+  const R=6371, toRad=x=>x*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const s=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+function estMinutes(km){ // rough road-time heuristic: avg 32km/h incl. local roads/stops, +5min overhead
+  return Math.round((km/32)*60 + 5);
+}
+function fmtKm(km){ return km<1 ? Math.round(km*1000)+'m' : km.toFixed(1)+'km'; }
+
+/* ============ RENDER: RAIL ============ */
+function renderRail(){
+  const rail = document.getElementById('rail');
+  rail.innerHTML='';
+  rail.appendChild(el(`
+    <div class="rail-brand">
+      <div class="mark"></div>
+      <div><h1>TABIKUMI</h1><br><span>AI TRIP PLANNER</span></div>
+    </div>
+  `));
+  const inWizard = state.view==='wizard';
+  STEPS.forEach((s,i)=>{
+    const status = inWizard ? (s.n < state.step ? 'done' : (s.n===state.step ? 'active' : '')) : '';
+    const clickable = inWizard && s.n < state.step;
+    const item = el(`
+      <div class="step-item ${status} ${clickable?'clickable':''}">
+        <div class="num">${inWizard && s.n < state.step ? '✓' : s.n}</div>
+        <div class="label"><b>${s.label}</b><small>${s.sub}</small></div>
+      </div>
+    `);
+    if(clickable) item.onclick=()=>{ state.view='wizard'; state.step=s.n; renderAll(); };
+    rail.appendChild(item);
+    if(i<STEPS.length-1) rail.appendChild(el(`<div class="rail-line"></div>`));
+  });
+  rail.appendChild(el(`<div class="rail-line"></div>`));
+  const histItem = el(`
+    <div class="step-item clickable ${state.view!=='wizard'?'active':''}">
+      <div class="num">📖</div>
+      <div class="label"><b>過去の旅行</b><small>記録を見返す</small></div>
+    </div>
+  `);
+  histItem.onclick=()=>{ state.view='history'; loadHistoryList(); };
+  rail.appendChild(histItem);
+  rail.appendChild(el(`<div class="rail-foot">行きたい場所を入れるだけ。<br>並び順と日割りはAIにおまかせ。</div>`));
+}
+
+/* ============ RENDER: TOPBAR ============ */
+function renderTopbar(){
+  const top = document.getElementById('topbar');
+  top.innerHTML='';
+  if(state.view==='history'){
+    top.appendChild(el(`<div><h2 class="display">過去の旅行</h2><p>これまでに記録した旅程を見返せます</p></div>`));
+    return;
+  }
+  if(state.view==='history-detail'){
+    top.appendChild(el(`<div><h2 class="display">${state.trip.name||'過去の旅行'}</h2><p>${state.trip.start}〜${state.trip.end} の記録</p></div>`));
+    return;
+  }
+  const s = STEPS[state.step-1];
+  const left = el(`<div><h2 class="display">${s.label}</h2><p>STEP ${s.n} / ${STEPS.length} — ${s.sub}</p></div>`);
+  top.appendChild(left);
+  if(state.trip.name && state.step>1){
+    top.appendChild(el(`<div class="trip-summary">✈️ <b>${state.trip.name}</b> ・ <b>${state.trip.start}〜${state.trip.end}</b> ・ <b>${daysBetween(state.trip.start,state.trip.end)}日間</b></div>`));
+  }
+}
+
+/* ============ STEP 1 ============ */
+function renderStep1(){
+  const c = el(`<div class="card" style="max-width:520px;">
+    ${state.historyList.length ? `<div style="font-size:12px;color:var(--teal-deep);background:#EEF6F4;border-radius:8px;padding:8px 12px;margin-bottom:16px;">📖 過去${state.historyList.length}件の旅行記録を参考に、AIがプランにコメントを添えることがあります</div>` : ''}
+    <div class="field">
+      <label>旅行名</label>
+      <input id="f-name" placeholder="例）北海道 夏の旅" value="${state.trip.name}"/>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1;">
+        <label>出発日</label>
+        <input id="f-start" type="date" value="${state.trip.start}"/>
+      </div>
+      <div class="field" style="flex:1;">
+        <label>帰宅日</label>
+        <input id="f-end" type="date" value="${state.trip.end}"/>
+      </div>
+    </div>
+    <div id="f-days" style="font-size:12.5px;color:var(--text-soft);margin-bottom:18px;"></div>
+    <div class="footer-actions" style="margin-top:6px;">
+      <div></div>
+      <button class="btn btn-primary" id="to-step2">スポット登録へ進む →</button>
+    </div>
+  </div>`);
+  document.getElementById('content').appendChild(c);
+  const upd=()=>{
+    state.trip.name = document.getElementById('f-name').value;
+    state.trip.start = document.getElementById('f-start').value;
+    state.trip.end = document.getElementById('f-end').value;
+    const d = daysBetween(state.trip.start,state.trip.end);
+    document.getElementById('f-days').textContent = d ? `${d}日間の旅行（${Math.max(d-1,0)}泊）` : '';
+    document.getElementById('to-step2').disabled = !(state.trip.name && d>0);
+  };
+  ['f-name','f-start','f-end'].forEach(id=>document.getElementById(id).addEventListener('input',upd));
+  upd();
+  document.getElementById('to-step2').onclick=()=>{ state.step=2; renderAll(); };
+}
+
+/* ============ STEP 2 ============ */
+async function doSearch(q){
+  if(!q || q.trim().length<1) return;
+  state.searching=true; state.searchError=null; renderContentOnly();
+  try{
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    state.searchResults = data.results;
+    state.searchSearched = true;
+  }catch(e){
+    state.searchResults = [];
+    state.searchSearched = true;
+    state.searchError = '検索に失敗しました。しばらくしてからもう一度お試しいただくか、下の「緯度経度で直接登録」をお使いください。';
+  }
+  state.searching=false; renderContentOnly();
+}
+
+async function doHotelSearch(q){
+  if(!q || q.trim().length<1) return;
+  state.hotelSearch.searching=true; state.hotelSearch.error=null; renderContentOnly();
+  try{
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    state.hotelSearch.results = data.results;
+    state.hotelSearch.searched = true;
+  }catch(e){
+    state.hotelSearch.results = [];
+    state.hotelSearch.searched = true;
+    state.hotelSearch.error = '検索に失敗しました。しばらくしてからもう一度お試しいただくか、下の「緯度経度で直接登録」をお使いください。';
+  }
+  state.hotelSearch.searching=false; renderContentOnly();
+}
+
+function renderPointRow(labelText, key, target, placeholder, icon, timeKey){
+  const current = state.trip[key];
+  const isOpen = state.hotelSearch.target === target;
+
+  const box = el(`<div class="card" style="padding:16px 18px;margin-bottom:12px;"></div>`);
+  const head = el(`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;"></div>`);
+  head.appendChild(el(`<div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">${icon} ${labelText}</div>`));
+
+  const timeInput = el(`<input type="time" value="${state.trip[timeKey]}" style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;width:104px;"/>`);
+  timeInput.addEventListener('input', e=>{ state.trip[timeKey] = e.target.value; });
+  head.appendChild(timeInput);
+  box.appendChild(head);
+
+  const body = el(`<div style="margin-top:12px;"></div>`);
+
+  if(current){
+    const row = el(`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div style="font-size:14px;font-weight:700;">${current.name}</div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="mini-btn">変更</button>
+        <button class="mini-btn remove">未定に戻す</button>
+      </div>
+    </div>`);
+    row.querySelectorAll('button')[0].onclick=()=>{ state.hotelSearch={target, query:'', results:[], searching:false}; renderContentOnly(); };
+    row.querySelectorAll('button')[1].onclick=()=>{ state.trip[key]=null; renderContentOnly(); };
+    body.appendChild(row);
+  } else if(!isOpen){
+    const row = el(`<div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:12px;color:var(--text-soft);">未定（地名は分からなくても時刻だけでOK）</span>
+      <button class="mini-btn">検索して設定</button>
+    </div>`);
+    row.querySelector('button').onclick=()=>{ state.hotelSearch={target, query:'', results:[], searching:false}; renderContentOnly(); };
+    body.appendChild(row);
+  }
+
+  if(isOpen){
+    const searchWrap = el(`<div></div>`);
+    const row = el(`<div class="search-row" style="margin-bottom:10px;">
+      <input id="hs-input" placeholder="${placeholder}" value="${state.hotelSearch.query}"/>
+      <button class="btn btn-primary" id="hs-go">検索</button>
+    </div>`);
+    searchWrap.appendChild(row);
+
+    const results = el(`<div class="search-results" style="margin-bottom:0;"></div>`);
+    if(state.hotelSearch.searching){
+      results.appendChild(el(`<div class="empty-note">検索中…</div>`));
+    } else if(state.hotelSearch.error){
+      results.appendChild(el(`<div class="empty-note" style="border-color:var(--coral);color:var(--coral);">${state.hotelSearch.error}</div>`));
+    } else if(state.hotelSearch.searched && state.hotelSearch.results.length===0){
+      results.appendChild(el(`<div class="empty-note">該当する場所が見つかりませんでした。別のキーワードでお試しいただくか、下の「緯度経度で直接登録」をお使いください。</div>`));
+    } else {
+      state.hotelSearch.results.forEach(r=>{
+        const hit = el(`<div class="search-hit">
+          <div><div class="name">${r.name}</div><div class="addr">${r.addr}</div></div>
+          <button class="mini-btn">設定</button>
+        </div>`);
+        hit.querySelector('button').onclick=()=>{
+          state.trip[key] = { name:r.name, lat:r.lat, lng:r.lng };
+          state.hotelSearch = { target:null, query:'', results:[], searching:false, error:null, searched:false };
+          renderContentOnly();
+        };
+        results.appendChild(hit);
+      });
+    }
+    searchWrap.appendChild(results);
+
+    const manualToggle = el(`<button class="mini-btn" style="margin-top:10px;">📍 緯度経度で直接登録</button>`);
+    const manualBox = el(`<div style="display:none;margin-top:10px;padding:12px;background:#F4F7F5;border-radius:8px;"></div>`);
+    manualToggle.onclick=()=>{ manualBox.style.display = manualBox.style.display==='none' ? 'block' : 'none'; };
+    manualBox.appendChild(el(`<div style="font-size:11.5px;color:var(--text-soft);margin-bottom:8px;">Googleマップなどで地点を検索し、緯度・経度をコピーして入力してください</div>`));
+    const mRow = el(`<div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input id="m-name" placeholder="場所の名前" style="flex:2;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+      <input id="m-lat" placeholder="緯度 例:43.0621" style="flex:1;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+      <input id="m-lng" placeholder="経度 例:141.3544" style="flex:1;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+    </div>`);
+    manualBox.appendChild(mRow);
+    const mBtn = el(`<button class="mini-btn">この内容で設定</button>`);
+    mBtn.onclick=()=>{
+      const name = manualBox.querySelector('#m-name').value.trim();
+      const lat = parseFloat(manualBox.querySelector('#m-lat').value);
+      const lng = parseFloat(manualBox.querySelector('#m-lng').value);
+      if(!name || isNaN(lat) || isNaN(lng)){ alert('場所の名前・緯度・経度をすべて入力してください'); return; }
+      state.trip[key] = { name, lat, lng };
+      state.hotelSearch = { target:null, query:'', results:[], searching:false, error:null, searched:false };
+      renderContentOnly();
+    };
+    manualBox.appendChild(mBtn);
+    searchWrap.appendChild(manualToggle);
+    searchWrap.appendChild(manualBox);
+
+    const closeBtn = el(`<button class="mini-btn remove" style="margin-top:10px;">閉じる（未定のままにする）</button>`);
+    closeBtn.onclick=()=>{ state.hotelSearch={target:null, query:'', results:[], searching:false, error:null, searched:false}; renderContentOnly(); };
+    searchWrap.appendChild(closeBtn);
+    body.appendChild(searchWrap);
+
+    setTimeout(()=>{
+      const input = document.getElementById('hs-input');
+      const goBtn = document.getElementById('hs-go');
+      if(!input) return;
+      goBtn.onclick=()=>{ state.hotelSearch.query=input.value; doHotelSearch(input.value); };
+      input.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ state.hotelSearch.query=e.target.value; doHotelSearch(e.target.value); }
+      });
+    },0);
+  }
+
+  box.appendChild(body);
+  return box;
+}
+
+function renderHotelSection(wrap){
+  wrap.appendChild(el(`<div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:.03em;margin-bottom:10px;">
+    出発地点・到着地点（分かっている範囲でOK・未定のままでも進めます）
+  </div>`));
+  wrap.appendChild(renderPointRow('スタート地点', 'startPoint', 'start', '例：新千歳空港、札幌駅、初日のホテル', '▶️', 'startTime'));
+  wrap.appendChild(renderPointRow('ゴール地点', 'goalPoint', 'goal', '例：新千歳空港、札幌駅、最終日のホテル', '🏁', 'endTime'));
+  wrap.appendChild(el(`<div style="height:20px;"></div>`));
+}
+
+function renderStep2(){
+  const wrap = el(`<div>
+    <div id="hotel-section"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:.03em;margin-bottom:10px;">
+      行きたいスポットを検索して追加
+    </div>
+    <div class="search-row">
+      <input id="s-input" placeholder="行きたい場所を検索（例：白い恋人パーク）" value="${state.searchQuery}"/>
+      <button class="btn btn-primary" id="s-go">検索</button>
+    </div>
+    <div id="s-results" class="search-results"></div>
+    <div id="manual-add-section"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:.03em;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+      ✅ 決定済みスポット（${state.spots.filter(s=>s.status==='confirmed').length}）
+    </div>
+    <div id="spot-list-confirmed" class="spot-list" style="margin-bottom:24px;"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:.03em;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+      ☆ 行きたい候補（仮）（${state.spots.filter(s=>s.status==='candidate').length}）
+    </div>
+    <div style="font-size:11.5px;color:var(--text-soft);margin-bottom:10px;">時間が足りない場合、AIはまずこちらの候補から優先的に外します</div>
+    <div id="spot-list-candidate" class="spot-list"></div>
+    <div class="footer-actions">
+      <button class="btn btn-ghost" id="back1">← 日程に戻る</button>
+      <button class="btn btn-primary" id="to-step3">地図で確認する →</button>
+    </div>
+  </div>`);
+  document.getElementById('content').appendChild(wrap);
+  renderHotelSection(wrap.querySelector('#hotel-section'));
+
+  const resultsEl = wrap.querySelector('#s-results');
+  if(state.searching){
+    resultsEl.appendChild(el(`<div class="empty-note">検索中…</div>`));
+  } else if(state.searchError){
+    resultsEl.appendChild(el(`<div class="empty-note" style="border-color:var(--coral);color:var(--coral);">${state.searchError}</div>`));
+  } else if(state.searchSearched && state.searchResults.length===0){
+    resultsEl.appendChild(el(`<div class="empty-note">該当する場所が見つかりませんでした。別のキーワードでお試しいただくか、下の「緯度経度で直接登録」をお使いください。</div>`));
+  } else if(state.searchResults.length){
+    state.searchResults.forEach(r=>{
+      const already = state.spots.some(sp=>sp.name===r.name && sp.lat===r.lat);
+      const row = el(`<div class="search-hit">
+        <div><div class="name">${r.name}</div><div class="addr">${r.addr}</div></div>
+        <div style="display:flex;gap:6px;flex-shrink:0;"></div>
+      </div>`);
+      const btnRow = row.querySelector('div[style]');
+      if(already){
+        btnRow.appendChild(el(`<button class="mini-btn" disabled style="opacity:.5;">追加済み</button>`));
+      } else {
+        const confirmBtn = el(`<button class="mini-btn">✅ 決定で追加</button>`);
+        confirmBtn.onclick=()=>{
+          state.spots.push({ id:'s'+Date.now()+Math.random().toString(36).slice(2,6), name:r.name, addr:r.addr, lat:r.lat, lng:r.lng, status:'confirmed' });
+          renderContentOnly();
+        };
+        const candidateBtn = el(`<button class="mini-btn" style="background:transparent;color:var(--teal-deep);border:1px solid var(--teal-deep);">☆ 候補で追加</button>`);
+        candidateBtn.onclick=()=>{
+          state.spots.push({ id:'s'+Date.now()+Math.random().toString(36).slice(2,6), name:r.name, addr:r.addr, lat:r.lat, lng:r.lng, status:'candidate' });
+          renderContentOnly();
+        };
+        btnRow.appendChild(confirmBtn);
+        btnRow.appendChild(candidateBtn);
+      }
+      resultsEl.appendChild(row);
+    });
+  }
+
+  const manualToggle = el(`<button class="mini-btn" style="margin-bottom:22px;">📍 緯度経度で直接登録</button>`);
+  const manualBox = el(`<div style="display:none;margin-bottom:22px;padding:12px;background:#F4F7F5;border-radius:8px;"></div>`);
+  manualToggle.onclick=()=>{ manualBox.style.display = manualBox.style.display==='none' ? 'block' : 'none'; };
+  manualBox.appendChild(el(`<div style="font-size:11.5px;color:var(--text-soft);margin-bottom:8px;">Googleマップなどで場所を検索し、緯度・経度をコピーして入力してください</div>`));
+  const mRow = el(`<div style="display:flex;gap:8px;margin-bottom:8px;">
+    <input id="sm-name" placeholder="場所の名前" style="flex:2;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+    <input id="sm-lat" placeholder="緯度 例:43.0621" style="flex:1;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+    <input id="sm-lng" placeholder="経度 例:141.3544" style="flex:1;font-size:13px;padding:9px 10px;border-radius:7px;border:1px solid var(--line);"/>
+  </div>`);
+  manualBox.appendChild(mRow);
+  const mBtnRow = el(`<div style="display:flex;gap:8px;"></div>`);
+  const mBtnConfirmed = el(`<button class="mini-btn">✅ 決定で追加</button>`);
+  const mBtnCandidate = el(`<button class="mini-btn" style="background:transparent;color:var(--teal-deep);border:1px solid var(--teal-deep);">☆ 候補で追加</button>`);
+  function manualAdd(status){
+    const name = manualBox.querySelector('#sm-name').value.trim();
+    const lat = parseFloat(manualBox.querySelector('#sm-lat').value);
+    const lng = parseFloat(manualBox.querySelector('#sm-lng').value);
+    if(!name || isNaN(lat) || isNaN(lng)){ alert('場所の名前・緯度・経度をすべて入力してください'); return; }
+    state.spots.push({ id:'s'+Date.now()+Math.random().toString(36).slice(2,6), name, addr:name, lat, lng, status });
+    manualBox.querySelector('#sm-name').value=''; manualBox.querySelector('#sm-lat').value=''; manualBox.querySelector('#sm-lng').value='';
+    renderContentOnly();
+  }
+  mBtnConfirmed.onclick=()=>manualAdd('confirmed');
+  mBtnCandidate.onclick=()=>manualAdd('candidate');
+  mBtnRow.appendChild(mBtnConfirmed); mBtnRow.appendChild(mBtnCandidate);
+  manualBox.appendChild(mBtnRow);
+  wrap.querySelector('#manual-add-section').appendChild(manualToggle);
+  wrap.querySelector('#manual-add-section').appendChild(manualBox);
+
+  function renderSpotChip(sp, i, targetList){
+    const otherStatus = sp.status==='confirmed' ? 'candidate' : 'confirmed';
+    const toggleLabel = sp.status==='confirmed' ? '☆ 候補にする' : '✅ 決定にする';
+    const row = el(`<div class="spot-chip">
+      <div><span class="idx">${i+1}</span>${sp.name}</div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="mini-btn" style="background:transparent;color:var(--text-soft);border:1px solid var(--line);">${toggleLabel}</button>
+        <button class="mini-btn remove">削除</button>
+      </div>
+    </div>`);
+    const btns = row.querySelectorAll('button');
+    btns[0].onclick=()=>{ sp.status = otherStatus; renderContentOnly(); };
+    btns[1].onclick=()=>{ state.spots = state.spots.filter(x=>x.id!==sp.id); renderContentOnly(); };
+    targetList.appendChild(row);
+  }
+
+  const confirmedEl = wrap.querySelector('#spot-list-confirmed');
+  const confirmedSpots = state.spots.filter(s=>s.status==='confirmed');
+  if(!confirmedSpots.length){
+    confirmedEl.appendChild(el(`<div class="empty-note">まだ決定済みスポットがありません。上の検索から追加してください。</div>`));
+  } else {
+    confirmedSpots.forEach((sp,i)=>renderSpotChip(sp,i,confirmedEl));
+  }
+
+  const candidateEl = wrap.querySelector('#spot-list-candidate');
+  const candidateSpots = state.spots.filter(s=>s.status==='candidate');
+  if(!candidateSpots.length){
+    candidateEl.appendChild(el(`<div class="empty-note">候補スポットはまだありません（無くてもOKです）</div>`));
+  } else {
+    candidateSpots.forEach((sp,i)=>renderSpotChip(sp,i,candidateEl));
+  }
+
+  wrap.querySelector('#s-go').onclick=()=>{ state.searchQuery = wrap.querySelector('#s-input').value; doSearch(state.searchQuery); };
+  wrap.querySelector('#s-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ state.searchQuery=e.target.value; doSearch(state.searchQuery); }
+  });
+  wrap.querySelector('#back1').onclick=()=>{ state.step=1; renderAll(); };
+  const nextBtn = wrap.querySelector('#to-step3');
+  nextBtn.disabled = state.spots.length < 2;
+  nextBtn.onclick=()=>{ state.step=3; renderAll(); };
+}
+
+/* ============ STEP 3 : MAP ============ */
+function renderStep3(){
+  const wrap = el(`<div>
+    <div id="map"></div>
+    <div class="footer-actions">
+      <button class="btn btn-ghost" id="back2">← スポット登録に戻る</button>
+      <button class="btn btn-primary" id="to-step4">AIにプランを作らせる →</button>
+    </div>
+  </div>`);
+  document.getElementById('content').appendChild(wrap);
+  wrap.querySelector('#back2').onclick=()=>{ state.step=2; renderAll(); };
+  wrap.querySelector('#to-step4').onclick=()=>{ state.step=4; renderAll(); };
+
+  setTimeout(()=>{
+    const mapDiv = document.getElementById('map');
+    if(!mapDiv) return;
+    const map = L.map(mapDiv);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'&copy; OpenStreetMap contributors', maxZoom:18
+    }).addTo(map);
+    const bounds=[];
+    state.spots.forEach((sp,i)=>{
+      const isCandidate = sp.status==='candidate';
+      const pinStyle = isCandidate ? 'background:#fff;border:2px dashed var(--teal);' : '';
+      const numColor = isCandidate ? 'color:var(--teal);' : '';
+      const icon = L.divIcon({html:`<div class="pin" style="${pinStyle}"><span style="${numColor}">${i+1}</span></div>`, iconSize:[26,26], iconAnchor:[13,26]});
+      L.marker([sp.lat,sp.lng],{icon}).addTo(map).bindTooltip(sp.name + (isCandidate?'（候補）':''));
+      bounds.push([sp.lat,sp.lng]);
+    });
+    if(state.trip.startPoint){
+      const h=state.trip.startPoint;
+      const icon = L.divIcon({html:`<div class="pin" style="background:var(--teal-deep);"><span>▶️</span></div>`, iconSize:[26,26], iconAnchor:[13,26]});
+      L.marker([h.lat,h.lng],{icon}).addTo(map).bindTooltip('スタート地点：'+h.name);
+      bounds.push([h.lat,h.lng]);
+    }
+    if(state.trip.goalPoint){
+      const h=state.trip.goalPoint;
+      const icon = L.divIcon({html:`<div class="pin" style="background:var(--ink);"><span>🏁</span></div>`, iconSize:[26,26], iconAnchor:[13,26]});
+      L.marker([h.lat,h.lng],{icon}).addTo(map).bindTooltip('ゴール地点：'+h.name);
+      bounds.push([h.lat,h.lng]);
+    }
+    if(bounds.length) map.fitBounds(bounds,{padding:[40,40]});
+    else map.setView([43.06,141.35],7);
+  },0);
+}
+
+/* ============ AI PLAN GENERATION ============ */
+function distNodes(){
+  // spots + optional start/goal nodes, all with a stable id, for matrix + prompt building
+  const nodes = state.spots.map(s=>({id:s.id, name:s.name, lat:s.lat, lng:s.lng}));
+  if(state.trip.startPoint) nodes.push({id:'START', name:state.trip.startPoint.name, lat:state.trip.startPoint.lat, lng:state.trip.startPoint.lng});
+  if(state.trip.goalPoint) nodes.push({id:'GOAL', name:state.trip.goalPoint.name, lat:state.trip.goalPoint.lat, lng:state.trip.goalPoint.lng});
+  return nodes;
+}
+
+function buildDistanceMatrix(){
+  const nodes = distNodes();
+  const m = {};
+  nodes.forEach(a=>{
+    m[a.id]={};
+    nodes.forEach(b=>{
+      if(a.id===b.id) return;
+      const km = haversineKm(a,b);
+      m[a.id][b.id] = { km: +km.toFixed(1), min: estMinutes(km) };
+    });
+  });
+  return m;
+}
+
+async function generatePlan(){
+  state.planLoading=true; state.planError=null; state.currentTripSaved=false; state.savedNotice=null; renderContentOnly();
+  const nDays = daysBetween(state.trip.start,state.trip.end);
+  const matrix = buildDistanceMatrix();
+  const nodes = distNodes();
+  const historyContext = buildHistoryPromptContext();
+
+  const spotLines = state.spots.map(s=>`- id:${s.id} name:${s.name} lat:${s.lat} lng:${s.lng} status:${s.status==='candidate'?'候補（仮）':'決定済み'}`).join('\n');
+  const distLines = [];
+  nodes.forEach(a=>nodes.forEach(b=>{
+    if(a.id>=b.id) return;
+    distLines.push(`${a.id}-${b.id}: ${matrix[a.id][b.id].km}km / 約${matrix[a.id][b.id].min}分`);
+  }));
+
+  const startLine = state.trip.startPoint
+    ? `- id:START name:${state.trip.startPoint.name} lat:${state.trip.startPoint.lat} lng:${state.trip.startPoint.lng} （スタート地点・確定、DAY1開始時刻:${state.trip.startTime}）`
+    : `- スタート地点: 未入力（DAY1開始時刻のも値${state.trip.startTime}は指定済み）`;
+  const goalLine = state.trip.goalPoint
+    ? `- id:GOAL name:${state.trip.goalPoint.name} lat:${state.trip.goalPoint.lat} lng:${state.trip.goalPoint.lng} （ゴール地点・確定、最終日終了時刻:${state.trip.endTime}）`
+    : `- ゴール地点: 未入力（最終日終了時刻のも値${state.trip.endTime}は指定済み）`;
+
+  const system = `あなたは旅行プランナーAIです。与えられたスポットの緯度経度と移動時間データを使い、現実的な旅程を作成してください。
+必ず有効なJSONオブジェクトのみを出力してください。前置き、説明文、Markdownのコードフェンスは一切含めないでください。
+
+出力JSONスキーマ:
+{
+  "feasible": boolean,
+  "totalTravelMinutes": number,
+  "totalVisitMinutes": number,
+  "availableMinutes": number,
+  "warning": string | null,
+  "suggestion": string | null,
+  "excludedCandidates": [
+    { "spotId": string, "name": string, "reason": string }
+  ],
+  "arrivalStaySuggestion": {
+    "areaName": string,
+    "reason": string,
+    "anchorSpotId": string
+  } | null,
+  "days": [
+    {
+      "dayIndex": number,
+      "areaLabel": string,
+      "note": string,
+      "stops": [
+        {
+          "spotId": string | null,
+          "name": string,
+          "type": "hotel_start" | "spot" | "meal" | "hotel_end",
+          "arrive": "HH:MM",
+          "depart": "HH:MM",
+          "stayMinutes": number,
+          "travelToNextMinutes": number | null,
+          "travelToNextKm": number | null,
+          "note": string,
+          "estimated": boolean
+        }
+      ],
+      "stayAreaSuggestion": {
+        "areaName": string,
+        "reason": string,
+        "anchorSpotId": string
+      } | null
+    }
+  ]
+}
+
+旅行全体の構造（重要・時系列で理解すること）:
+DAY1は必ずSTART（または未確定なら提案エリア）からstart時刻に開始し、最終日はGOAL（または未確定なら最後のスポット）でend時刻頃に終わる。途中の夜（DAY(i)とDAY(i+1)の間、i=1〜最終日-1）の宿泊地は指定されていないので、AIが提案する。
+
+ルール:
+- 中間の日（DAY2〜最終日前）は09:00開始、18:00頃終了を目安にする。DAY1はSTARTタイム、最終日はGOALタイムを基準にする。
+- 地理的に近いスポットを同じ日にグループ化する。日をまたぐ移動は最小化する。
+- 各スポットの滞在時間は種類から妥当な値を推定する（例: テーマパーク90-120分、市場60分、展望台45-60分、公園60分など）。
+- 昼食枠（type: meal, 60分程度）を各日1回、正午前後に挿入する。
+- 総移動時間・総観光時間が旅行可能時間を上回る場合はfeasibleをfalseにし、warningに具体的な数値を明記する。
+
+決定済み・候補（仮）スポットの優先順位（重要）:
+- status:決定済み のスポットは必ず全日程のいずれかの日に含めること。時間が厳しくても、決定済みスポットを勝手に除外してはいけない。どうしても全日程に収まらない場合はfeasible:falseとし、warningでその旨を明記する（決定済みスポットを削るのではなく、正直に「無理」と伝える）。
+- status:候補（仮） のスポットは、時間に余裕があれば含めてよい任意枠。時間が厳しい場合は、決定済みスポットより先に候補スポットを外すこと。
+- 含めなかった候補スポットは、excludedCandidatesに{spotId, name, reason}の形で列挙する（reasonには「移動時間が長くなるため」等、具体的な理由を書く）。含めなかった候補が無ければ空配列[]にする。
+- suggestion（削減提案）は、まだプランに入れている候補スポットがあればそれを外す提案を優先し、候補が無い/全部除外済みでもなお厳しい場合のみ、決定済みスポットについて言及してよい。
+
+スタート・ゴール地点の扱い（重要）:
+未確定の地点については、架空の場所を作文しない。代わりに登録済みスポットのいずれかを目印（anchorSpotId）にして「この辺りが合理的」という形でエリアを提案する。提案エリアの座標はanchorSpotIdのスポットの座標として扱ってよく、そこから隣接する予定までの移動時間は実際の距離データ（全ノード間の距離が提供されている）を使って計算できる。
+
+【DAY1の始まり】
+1. STARTが確定している場合: DAY1の最初のstopをtype:"hotel_start", spotId:"START", nameはその地点名、arriveはSTARTタイム。移動時間はSTART起点の距離データで正確に計算。estimated:false。arrivalStaySuggestionはnullでよい。
+2. STARTが未定の場合: DAY1の最初のstopはtype:"hotel_start", spotId:null, nameは"出発地点未定"、arriveはSTARTタイムをそのまま使う（ユーザーが時刻は指定済みなので目安ではない）。noteに「出発地点の場所は未定のため、最初の移動時間は目安」と明記。estimated:true。arrivalStaySuggestionには、DAY1最初のスポット近くに集合するのが無難という提案（anchorSpotIdはDAY1最初のスポットのid）を設定する。
+
+【中間の夜（DAY(i)とDAY(i+1)の間、i=1〜最終日-1）】
+3. 最終日より前の日（DAY(i), i<最終日）は、その日の最後の観光スポットで終えてよく、type:"hotel_end"のstopは置かない。代わりに、DAY(i)のstayAreaSuggestionで、「DAY(i)最後に訪れるスポット」と「DAY(i+1)最初に訪れるスポット」の両方を考慮し、移動効率の良いエリアをanchorSpotIdとして提案する。
+4. 翌日（DAY(i+1)）の最初のstopは、type:"hotel_start", spotId:null, nameを"宿泊地未定（提案エリア: {前日のareaName}）"とし、travelToNextMinutes/Kmは前日のanchorSpotIdから当日最初のスポットまでの実距離で計算する。
+
+【最終日の終わり】
+5. GOALが確定している場合: 最終日の最後のstopをtype:"hotel_end", spotId:"GOAL", nameはその地点名、departはGOALタイムとし、直前スポットからの移動時間をGOALとの距離データで正確に計算する。estimated:false。
+6. GOALが未定の場合: 最終日は最後の観光スポットで終えてよい（type:"hotel_end"のダミーstopは追加しない）。ただしそのスポットのnoteに「終了目安: {GOALタイム}頃」と一言添える。
+
+過去の旅行履歴（参考情報）:
+ユーザーの過去の旅行履歴が渡される場合がある。渡された場合、行き先の傾向（自然系・都市観光・グルメなど）を軽く参考にし、関連性が高いと感じた場合のみ、該当する日のnoteやsuggestionに一言触れてよい（例：「前回の旅行でも自然スポットを中心に周られていたので、青い池は特におすすめです」）。無理に毎回言及する必要はなく、関連が薄い場合は何も触れなくてよい。`;
+
+  const user = `旅行日数: ${nDays}日間 (${state.trip.start} 〜 ${state.trip.end})
+
+スタート・ゴール地点:
+${startLine}
+${goalLine}
+
+スポット一覧:
+${spotLines}
+
+移動時間（直線距離ベースの概算、実際の道路移動時間として扱ってよい。START/GOALが確定している場合はそれらとの距離も含む）:
+${distLines.join('\n')}
+${historyContext ? `\nユーザーの過去の旅行履歴（参考・任意で活用してよい）:\n${historyContext}\n` : ''}
+上記データを元に、スキーマ通りのJSONで旅程を作成してください。`;
+
+
+
+  try{
+    const response = await fetch("/api/plan", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ system, user })
+    });
+    const data = await response.json();
+    if(!response.ok) throw new Error(data.message || data.error || 'plan request failed');
+    state.plan = data.plan;
+    state.activeDay = 0;
+    state.step = 5;
+  }catch(e){
+    state.planError = 'プラン生成に失敗しました。もう一度お試しください。';
+  }
+  state.planLoading=false;
+  renderAll();
+}
+
+/* ============ STEP 4 ============ */
+function renderStep4(){
+  const wrap = el(`<div style="max-width:640px;">
+    <div class="card">
+      <p style="margin-top:0;font-size:14px;line-height:1.8;">
+        登録した <b>${state.spots.length}スポット</b> と、旅行期間 <b>${daysBetween(state.trip.start,state.trip.end)}日間</b> の情報から、
+        AIが日ごとのグルーピング・訪問順・移動時間・スケジュールを自動作成します。
+      </p>
+      <div id="step4-body"></div>
+    </div>
+  </div>`);
+  document.getElementById('content').appendChild(wrap);
+  const body = wrap.querySelector('#step4-body');
+
+  if(state.planLoading){
+    body.appendChild(el(`<div class="loading"><div class="spinner"></div><p>AIがスポットの位置関係を分析しています…</p></div>`));
+    return;
+  }
+  if(state.planError){
+    body.appendChild(el(`<div class="warn-box"><div class="head">⚠️ エラー</div><p style="margin:0;font-size:13px;">${state.planError}</p></div>`));
+  }
+  const actions = el(`<div class="footer-actions">
+    <button class="btn btn-ghost" id="back3">← 地図に戻る</button>
+    <button class="btn btn-primary" id="gen">AIでプラン作成 ✦</button>
+  </div>`);
+  body.appendChild(actions);
+  wrap.querySelector('#back3').onclick=()=>{ state.step=3; renderAll(); };
+  wrap.querySelector('#gen').onclick=generatePlan;
+}
+
+/* ============ STEP 5 : RESULT ============ */
+function typeLabel(t){
+  return {hotel_start:'🏨 出発', hotel_end:'🏨 到着', meal:'🍴 食事', spot:'📍'}[t] || '';
+}
+
+function renderReminderBox({icon, msg, sub, actionLabel, onAction, dismissKey}){
+  if(dismissKey && state._dismissedReminders && state._dismissedReminders.has(dismissKey)) return null;
+  const box = el(`<div class="reminder-box">
+    <div class="icon-circle">${icon}</div>
+    <div class="body">
+      <div class="msg">${msg}</div>
+      ${sub ? `<div class="sub">${sub}</div>` : ''}
+      ${actionLabel ? `<button class="action">${actionLabel}</button>` : ''}
+    </div>
+    <button class="close">✕</button>
+  </div>`);
+  if(actionLabel && onAction) box.querySelector('.action').onclick = onAction;
+  box.querySelector('.close').onclick = ()=>{
+    if(dismissKey){
+      if(!state._dismissedReminders) state._dismissedReminders = new Set();
+      state._dismissedReminders.add(dismissKey);
+    }
+    box.remove();
+  };
+  return box;
+}
+
+function renderStep5(readOnly){
+  if(!state.plan){ state.step=4; renderAll(); return; }
+  const p = state.plan;
+  const wrap = el(`<div></div>`);
+  document.getElementById('content').appendChild(wrap);
+
+  if(!readOnly){
+    const saveRow = el(`<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;"></div>`);
+    if(state.currentTripSaved){
+      saveRow.appendChild(el(`<span style="font-size:12.5px;color:var(--teal-deep);font-weight:700;">✓ 旅の記録に保存済み</span>`));
+    } else {
+      const saveBtn = el(`<button class="btn btn-ghost">📖 この旅行を記録に残す</button>`);
+      saveBtn.onclick=saveTripToHistory;
+      saveRow.appendChild(saveBtn);
+    }
+    if(state.savedNotice){
+      saveRow.appendChild(el(`<span style="font-size:12px;color:var(--text-soft);">${state.savedNotice}</span>`));
+    }
+    wrap.appendChild(saveRow);
+  }
+
+  if(!p.feasible){
+    const box = el(`<div class="warn-box">
+      <div class="head">⚠️ この旅程は時間的に厳しい可能性があります</div>
+      <p style="margin:0 0 4px;font-size:13px;">${p.warning||''}</p>
+      <div class="stats">
+        <div class="stat"><b>${Math.round((p.totalTravelMinutes||0)/60*10)/10}h</b><span>総移動時間</span></div>
+        <div class="stat"><b>${Math.round((p.totalVisitMinutes||0)/60*10)/10}h</b><span>総観光時間</span></div>
+        <div class="stat"><b>${Math.round((p.availableMinutes||0)/60*10)/10}h</b><span>旅行可能時間</span></div>
+      </div>
+      ${p.suggestion ? `<div class="suggest-chip">💡 ${p.suggestion}</div>` : ''}
+    </div>`);
+    wrap.appendChild(box);
+  }
+
+  if(p.excludedCandidates && p.excludedCandidates.length){
+    const box = el(`<div class="reminder-box" style="background:#F4F7F5;">
+      <div class="icon-circle" style="background:var(--teal);">☆</div>
+      <div class="body">
+        <div class="msg" style="color:var(--ink);">今回のプランに含まれなかった候補スポット（${p.excludedCandidates.length}件）</div>
+        <div class="sub" style="color:var(--text-soft);">${p.excludedCandidates.map(c=>`${c.name}（${c.reason||''}）`).join('　/　')}</div>
+      </div>
+    </div>`);
+    wrap.appendChild(box);
+  }
+
+  const tabs = el(`<div class="day-tabs"></div>`);
+  (p.days||[]).forEach((d,i)=>{
+    const t = el(`<button class="day-tab ${i===state.activeDay?'active':''}">DAY ${d.dayIndex||i+1}</button>`);
+    t.onclick=()=>{ state.activeDay=i; renderContentOnly(); };
+    tabs.appendChild(t);
+  });
+  wrap.appendChild(tabs);
+
+  const day = (p.days||[])[state.activeDay];
+  if(day){
+    wrap.appendChild(el(`<div class="day-title display">DAY ${day.dayIndex} — ${day.areaLabel||''}</div>`));
+    if(day.note) wrap.appendChild(el(`<div class="day-sub">${day.note}</div>`));
+
+    const isFirstDay = state.activeDay===0;
+    const isLastDay = state.activeDay === (p.days||[]).length-1;
+
+    if(!readOnly && isFirstDay && !state.trip.startPoint){
+      const b = renderReminderBox({
+        icon:'▶️', msg:'スタート地点がまだ未定のようです。',
+        sub:'設定すると、初日の移動時間がより正確になります。',
+        actionLabel:'スタート地点を設定する', dismissKey:'start-missing',
+        onAction:()=>{ state.step=2; renderAll(); }
+      });
+      if(b) wrap.appendChild(b);
+    }
+    if(isFirstDay && p.arrivalStaySuggestion){
+      const asug = p.arrivalStaySuggestion;
+      const b = renderReminderBox({
+        icon:'🌙', msg:`旅行前夜（DAY1前）の宿泊エリア提案：${asug.areaName}`,
+        sub:asug.reason||'', dismissKey:'arrival-suggestion-'+asug.areaName
+      });
+      if(b) wrap.appendChild(b);
+    }
+    if(!readOnly && isLastDay && !state.trip.goalPoint){
+      const b = renderReminderBox({
+        icon:'🏁', msg:'ゴール地点がまだ未定のようです。',
+        sub:'設定すると、最終日の移動時間がより正確になります。',
+        actionLabel:'ゴール地点を設定する', dismissKey:'goal-missing',
+        onAction:()=>{ state.step=2; renderAll(); }
+      });
+      if(b) wrap.appendChild(b);
+    }
+
+    const gridWrap = el(`<div style="display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;"></div>`);
+    const tt = el(`<div class="timetable" style="flex:1;min-width:280px;"></div>`);
+    (day.stops||[]).forEach(st=>{
+      const estBadge = st.estimated ? `<span style="font-size:10px;font-weight:700;color:#8A5B0E;background:#FFF1D6;border-radius:4px;padding:2px 6px;margin-left:6px;">目安</span>` : '';
+      const row = el(`<div class="tt-row">
+        <div class="tt-dot ${st.estimated?'move':''}"></div>
+        <div class="tt-time">${st.arrive||''}${st.depart? '〜'+st.depart:''}${estBadge}</div>
+        <div class="tt-name">${typeLabel(st.type)} ${st.name}</div>
+        ${st.note? `<div class="tt-note">${st.note}</div>` : ''}
+        ${st.travelToNextMinutes!=null ? `<div class="tt-move">↓ 移動 約${st.travelToNextMinutes}分${st.travelToNextKm!=null? ' ('+st.travelToNextKm+'km)':''}${st.estimated?'（概算）':''}</div>` : ''}
+      </div>`);
+      tt.appendChild(row);
+    });
+    gridWrap.appendChild(tt);
+
+    if(day.stayAreaSuggestion){
+      const sug = day.stayAreaSuggestion;
+      const b = renderReminderBox({
+        icon:'🌙', msg:`この夜の宿泊エリア提案：${sug.areaName}`,
+        sub:sug.reason||'', dismissKey:'stay-suggestion-day'+day.dayIndex
+      });
+      if(b) tt.appendChild(b);
+    }
+
+    const mapBox = el(`<div id="day-map" style="width:340px;height:360px;border-radius:12px;border:1px solid var(--line);flex-shrink:0;"></div>`);
+    gridWrap.appendChild(mapBox);
+    wrap.appendChild(gridWrap);
+
+    setTimeout(()=>{
+      const mapDiv = document.getElementById('day-map');
+      if(!mapDiv) return;
+      const map = L.map(mapDiv);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors', maxZoom:18}).addTo(map);
+      const latlngs=[]; const bounds=[];
+      (day.stops||[]).forEach((st,i)=>{
+        let sp = null;
+        if(st.spotId==='START') sp = state.trip.startPoint;
+        else if(st.spotId==='GOAL') sp = state.trip.goalPoint;
+        else sp = state.spots.find(s=>s.id===st.spotId);
+        if(!sp) return; // undecided hotel or unresolved id: skip pin, keep timetable note as the source of truth
+        const isHotel = st.type==='hotel_start' || st.type==='hotel_end';
+        const icon = isHotel
+          ? L.divIcon({html:`<div class="pin day" style="background:var(--ink);"><span>🏨</span></div>`, iconSize:[24,24], iconAnchor:[12,24]})
+          : L.divIcon({html:`<div class="pin day"><span>${i+1}</span></div>`, iconSize:[24,24], iconAnchor:[12,24]});
+        L.marker([sp.lat,sp.lng],{icon}).addTo(map).bindTooltip(st.name);
+        latlngs.push([sp.lat,sp.lng]); bounds.push([sp.lat,sp.lng]);
+      });
+      if(latlngs.length>1) L.polyline(latlngs,{color:'#157B77', weight:3, dashArray:'6,6'}).addTo(map);
+      const sugForMap = (state.activeDay===0 && !day.stayAreaSuggestion) ? p.arrivalStaySuggestion : day.stayAreaSuggestion;
+      if(sugForMap && sugForMap.anchorSpotId){
+        const anchor = state.spots.find(s=>s.id===sugForMap.anchorSpotId);
+        if(anchor){
+          const icon = L.divIcon({html:`<div class="pin day" style="background:var(--amber);"><span>🌙</span></div>`, iconSize:[24,24], iconAnchor:[12,24]});
+          L.marker([anchor.lat,anchor.lng],{icon}).addTo(map).bindTooltip('宿泊エリア提案：'+sugForMap.areaName);
+          bounds.push([anchor.lat,anchor.lng]);
+        }
+      }
+      if(bounds.length) map.fitBounds(bounds,{padding:[30,30]}); else map.setView([43.06,141.35],7);
+    },0);
+  }
+
+  const actions = el(`<div class="footer-actions"></div>`);
+  if(readOnly){
+    const backBtn = el(`<button class="btn btn-ghost">← 過去の旅行一覧に戻る</button>`);
+    backBtn.onclick=closeHistoryDetail;
+    actions.appendChild(backBtn);
+  } else {
+    const back4 = el(`<button class="btn btn-ghost">← 条件を変えて作り直す</button>`);
+    back4.onclick=()=>{ state.step=4; renderAll(); };
+    const restart = el(`<button class="btn btn-ghost">最初からやり直す</button>`);
+    restart.onclick=()=>{
+      Object.assign(state,{
+        view:'wizard', step:1,
+        trip:{name:'',start:'',end:'',startPoint:null,startTime:'09:00',goalPoint:null,endTime:'18:00'},
+        spots:[], searchQuery:'', searchResults:[],
+        plan:null, planError:null, activeDay:0, currentTripSaved:false, savedNotice:null, _dismissedReminders:new Set()
+      });
+      renderAll();
+    };
+    actions.appendChild(back4);
+    actions.appendChild(restart);
+  }
+  wrap.appendChild(actions);
+}
+
+/* ============ HISTORY LIST VIEW ============ */
+function renderHistoryList(){
+  const wrap = el(`<div></div>`);
+  document.getElementById('content').appendChild(wrap);
+
+  if(state.historyLoading){
+    wrap.appendChild(el(`<div class="loading"><div class="spinner"></div><p>読み込み中…</p></div>`));
+    return;
+  }
+
+  const newBtn = el(`<button class="btn btn-primary" style="margin-bottom:22px;">＋ 新しい旅行を作る</button>`);
+  newBtn.onclick=()=>{ state.view='wizard'; renderAll(); };
+  wrap.appendChild(newBtn);
+
+  if(!state.historyList.length){
+    wrap.appendChild(el(`<div class="empty-note">まだ記録された旅行がありません。旅程を作って「記録に残す」と、ここに表示されます。</div>`));
+    return;
+  }
+
+  const list = el(`<div style="display:flex;flex-direction:column;gap:12px;"></div>`);
+  state.historyList.forEach(t=>{
+    const card = el(`<div class="card" style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${t.name||'(名称未設定)'}</div>
+        <div style="font-size:12.5px;color:var(--text-soft);margin-bottom:6px;">${t.start}〜${t.end} ・ スポット${t.spotCount||0}件</div>
+        <div style="font-size:12px;color:var(--text-soft);">${(t.spotNames||[]).slice(0,5).join('、')}${(t.spotNames||[]).length>5?' 他':''}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="mini-btn" data-act="view">詳細を見る</button>
+        <button class="mini-btn remove" data-act="del">削除</button>
+      </div>
+    </div>`);
+    card.querySelector('[data-act="view"]').onclick=()=>openHistoryDetail(t.id);
+    card.querySelector('[data-act="del"]').onclick=()=>{
+      if(confirm(`「${t.name}」の記録を削除します。よろしいですか？`)) deleteHistoryTrip(t.id);
+    };
+    list.appendChild(card);
+  });
+  wrap.appendChild(list);
+}
+
+/* ============ RENDER ROOT ============ */
+function renderContentOnly(){
+  const content = document.getElementById('content');
+  content.innerHTML='';
+  if(state.view==='history'){ renderHistoryList(); return; }
+  if(state.view==='history-detail'){ renderStep5(true); return; }
+  ({1:renderStep1,2:renderStep2,3:renderStep3,4:renderStep4,5:renderStep5})[state.step]();
+}
+function renderAll(){
+  renderRail();
+  renderTopbar();
+  renderContentOnly();
+}
+renderAll();
+loadHistoryList();
+</script>
+</body>
+</html>
