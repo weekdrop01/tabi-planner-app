@@ -7,7 +7,7 @@
  * コードフェンスを剥がす処理が基本的に不要になる）。
  * --------------------------------------------------------- */
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
         contents: [{ role: 'user', parts: [{ text: user }] }],
         generationConfig: {
           responseMimeType: 'application/json',
-          maxOutputTokens: 4000,
+          maxOutputTokens: 12000,
         },
       }),
     });
@@ -52,7 +52,20 @@ module.exports = async (req, res) => {
       .replace(/^```/, '')
       .replace(/```$/, '')
       .trim();
-    const plan = JSON.parse(raw);
+    let plan;
+    try {
+      plan = JSON.parse(raw);
+    } catch (parseErr) {
+      // finishReasonが"MAX_TOKENS"の場合、出力上限に達して途中で切れたことが確定しているので、
+      // その旨をユーザーにも分かる形で伝える（単なるJSONパースエラーより原因がはっきりする）
+      if (candidate.finishReason === 'MAX_TOKENS') {
+        return res.status(502).json({
+          error: 'plan_truncated',
+          message: 'AIの出力が長くなりすぎて途中で切れました。スポット数を減らすか、日数を短くしてもう一度お試しください。',
+        });
+      }
+      throw parseErr;
+    }
     res.status(200).json({ plan });
   } catch (e) {
     console.error('plan generation error', e);
